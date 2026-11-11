@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>NO ESCAPE</title>
+
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    background:#000;
+    font-family:Arial;
+}
+
+#ui{
+    position:absolute;
+    top:10px;
+    left:10px;
+    color:white;
+    z-index:100;
+    background:rgba(0,0,0,0.5);
+    padding:10px;
+}
+
+#message{
+    color:yellow;
+    font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+    <div>NO ESCAPE</div>
+    <div>Mini Klauses: <span id="count">0</span>/5</div>
+    <div>Stamina: <span id="stamina">100</span></div>
+    <div id="message"></div>
+</div>
+
+<script type="module">
+
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+/////////////////////////////////////////////////
+// SCENE
+/////////////////////////////////////////////////
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000,20,120);
+
+const camera = new THREE.PerspectiveCamera(
+75,
+window.innerWidth/window.innerHeight,
+0.1,
+1000
+);
+
+camera.position.set(0,2,0);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+/////////////////////////////////////////////////
+// LIGHTING
+/////////////////////////////////////////////////
+
+const moon = new THREE.DirectionalLight(0x9999ff,0.4);
+moon.position.set(10,20,10);
+scene.add(moon);
+
+const ambient = new THREE.AmbientLight(0x333333);
+scene.add(ambient);
+
+/////////////////////////////////////////////////
+// FLOOR
+/////////////////////////////////////////////////
+
+const floor = new THREE.Mesh(
+new THREE.PlaneGeometry(500,500),
+new THREE.MeshLambertMaterial({
+color:0x228822
+})
+);
+
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+/////////////////////////////////////////////////
+// RANDOM MAZE
+/////////////////////////////////////////////////
+
+const bushes = [];
+
+function createBush(x,z){
+
+let bush = new THREE.Mesh(
+new THREE.BoxGeometry(5,5,5),
+new THREE.MeshLambertMaterial({
+color:0x006600
+})
+);
+
+bush.position.set(x,2.5,z);
+
+scene.add(bush);
+bushes.push(bush);
+}
+
+for(let x=-120;x<120;x+=10){
+for(let z=-120;z<120;z+=10){
+
+if(Math.random() < 0.40){
+
+if(
+Math.abs(x) < 20 &&
+Math.abs(z) < 20
+) continue;
+
+createBush(x,z);
+
+}
+}
+}
+
+/////////////////////////////////////////////////
+// CONTROLS
+/////////////////////////////////////////////////
+
+let keys = {};
+
+document.addEventListener("keydown",e=>{
+keys[e.key.toLowerCase()] = true;
+});
+
+document.addEventListener("keyup",e=>{
+keys[e.key.toLowerCase()] = false;
+});
+
+/////////////////////////////////////////////////
+// MOUSE LOOK
+/////////////////////////////////////////////////
+
+let yaw = 0;
+let pitch = 0;
+
+document.body.addEventListener("click",()=>{
+
+document.body.requestPointerLock();
+
+});
+
+document.addEventListener("mousemove",(e)=>{
+
+if(document.pointerLockElement !== document.body)
+return;
+
+yaw -= e.movementX * 0.002;
+pitch -= e.movementY * 0.002;
+
+pitch = Math.max(
+-Math.PI/2,
+Math.min(Math.PI/2,pitch)
+);
+
+camera.rotation.order="YXZ";
+camera.rotation.y = yaw;
+camera.rotation.x = pitch;
+
+});
+
+/////////////////////////////////////////////////
+// PLAYER
+/////////////////////////////////////////////////
+
+const player = {
+speed:0.15,
+stamina:100,
+rescued:0
+};
+
+/////////////////////////////////////////////////
+// SHYM
+/////////////////////////////////////////////////
+
+const shymMaterial =
+new THREE.MeshBasicMaterial({
+color:0xff0000
+});
+
+const shym = new THREE.Mesh(
+new THREE.PlaneGeometry(8,8),
+shymMaterial
+);
+
+shym.position.set(80,4,80);
+
+scene.add(shym);
+
+let shymAwake = false;
+let shymSpeed = 0.05;
+
+/////////////////////////////////////////////////
+// MINI KLAUSES
+/////////////////////////////////////////////////
+
+const miniKlauses = [];
+
+for(let i=0;i<5;i++){
+
+let penguin = new THREE.Mesh(
+
+new THREE.SphereGeometry(1),
+
+new THREE.MeshLambertMaterial({
+color:0xffffff
+})
+
+);
+
+penguin.position.set(
+(Math.random()*180)-90,
+1,
+(Math.random()*180)-90
+);
+
+penguin.userData.saved = false;
+
+scene.add(penguin);
+
+miniKlauses.push(penguin);
+
+}
+
+/////////////////////////////////////////////////
+// EXIT
+/////////////////////////////////////////////////
+
+const exit = new THREE.Mesh(
+
+new THREE.BoxGeometry(4,6,1),
+
+new THREE.MeshLambertMaterial({
+color:0xffff00
+})
+
+);
+
+exit.visible = false;
+scene.add(exit);
+
+/////////////////////////////////////////////////
+// MESSAGE
+/////////////////////////////////////////////////
+
+function message(text){
+
+document.getElementById("message")
+.innerText = text;
+
+}
+
+/////////////////////////////////////////////////
+// KLAUS ABILITIES
+/////////////////////////////////////////////////
+
+function rescueKlaus(){
+
+player.rescued++;
+
+document.getElementById("count")
+.innerText = player.rescued;
+
+switch(player.rescued){
+
+case 1:
+
+message(
+"Mini Klaus #1 rescued! FLASHLIGHT UNLOCKED. SHYM HAS AWAKENED!"
+);
+
+shymAwake = true;
+shymSpeed += 0.02;
+
+break;
+
+case 2:
+
+player.speed += 0.03;
+
+message(
+"Mini Klaus #2 rescued! SPEED UP!"
+);
+
+shymSpeed += 0.02;
+
+break;
+
+case 3:
+
+player.stamina = 150;
+
+message(
+"Mini Klaus #3 rescued! STAMINA UP!"
+);
+
+shymSpeed += 0.02;
+
+break;
+
+case 4:
+
+message(
+"Mini Klaus #4 rescued! SHYM WARNING ACTIVE!"
+);
+
+shymSpeed += 0.02;
+
+break;
+
+case 5:
+
+message(
+"FINAL KLAUS RESCUED! EXIT REVEALED!"
+);
+
+exit.visible = true;
+
+exit.position.set(
+(Math.random()*150)-75,
+3,
+(Math.random()*150)-75
+);
+
+shymSpeed += 0.08;
+
+break;
+}
+
+}
+
+/////////////////////////////////////////////////
+// MOVEMENT
+/////////////////////////////////////////////////
+
+function movePlayer(){
+
+let speed = player.speed;
+
+if(
+keys["shift"] &&
+player.stamina > 0
+){
+
+speed *= 2;
+player.stamina -= 0.3;
+
+}else{
+
+player.stamina += 0.15;
+
+}
+
+player.stamina =
+Math.min(
+player.stamina,
+150
+);
+
+let forward =
+new THREE.Vector3(
+Math.sin(yaw),
+0,
+Math.cos(yaw)
+);
+
+let right =
+new THREE.Vector3(
+Math.cos(yaw),
+0,
+-Math.sin(yaw)
+);
+
+if(keys["w"]){
+
+camera.position.x +=
+forward.x * speed;
+
+camera.position.z +=
+forward.z * speed;
+
+}
+
+if(keys["s"]){
+
+camera.position.x -=
+forward.x * speed;
+
+camera.position.z -=
+forward.z * speed;
+
+}
+
+if(keys["a"]){
+
+camera.position.x -=
+right.x * speed;
+
+camera.position.z -=
+right.z * speed;
+
+}
+
+if(keys["d"]){
+
+camera.position.x +=
+right.x * speed;
+
+camera.position.z +=
+right.z * speed;
+
+}
+
+document.getElementById("stamina")
+.innerText =
+Math.floor(player.stamina);
+}
+
+/////////////////////////////////////////////////
+// SHYM AI
+/////////////////////////////////////////////////
+
+function updateShym(){
+
+shym.lookAt(camera.position);
+
+if(!shymAwake)
+return;
+
+let dx =
+camera.position.x -
+shym.position.x;
+
+let dz =
+camera.position.z -
+shym.position.z;
+
+let dist =
+Math.hypot(dx,dz);
+
+if(dist > 2){
+
+shym.position.x +=
+(dx/dist)*shymSpeed;
+
+shym.position.z +=
+(dz/dist)*shymSpeed;
+
+}
+
+if(player.rescued >= 4){
+
+if(dist < 35){
+
+message(
+"SHYM IS COMING!"
+);
+
+}
+
+}
+
+if(dist < 2){
+
+alert(
+"SHYM CAUGHT YOU!"
+);
+
+location.reload();
+
+}
+}
+
+/////////////////////////////////////////////////
+// RESCUES
+/////////////////////////////////////////////////
+
+function updateKlauses(){
+
+miniKlauses.forEach(klaus=>{
+
+const dist = Math.hypot(
+
+camera.position.x -
+klaus.position.x,
+
+camera.position.z -
+klaus.position.z
+
+);
+
+if(
+!klaus.userData.saved &&
+dist < 3
+){
+
+klaus.userData.saved = true;
+klaus.visible = false;
+
+rescueKlaus();
+
+}
+
+});
+
+}
+
+/////////////////////////////////////////////////
+// EXIT
+/////////////////////////////////////////////////
+
+function updateExit(){
+
+if(!exit.visible)
+return;
+
+let dist = Math.hypot(
+
+camera.position.x -
+exit.position.x,
+
+camera.position.z -
+exit.position.z
+
+);
+
+if(dist < 5){
+
+alert(
+"YOU ESCAPED WITH ALL THE MINI KLAUSES!"
+);
+
+location.reload();
+
+}
+
+}
+
+/////////////////////////////////////////////////
+// GAME LOOP
+/////////////////////////////////////////////////
+
+function animate(){
+
+requestAnimationFrame(animate);
+
+movePlayer();
+updateShym();
+updateKlauses();
+updateExit();
+
+renderer.render(
+scene,
+camera
+);
+
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
